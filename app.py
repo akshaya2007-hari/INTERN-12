@@ -1,31 +1,32 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.tree import DecisionTreeRegressor, plot_tree
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
+import matplotlib.pyplot as plt
 
 # ===============================
-# Page Configuration
+# Page config
 # ===============================
 st.set_page_config(
-    page_title="House Price Prediction",
-    page_icon="🏠",
+    page_title="Salary Prediction - Decision Tree",
+    page_icon="💼",
     layout="centered"
 )
 
-# ===============================
-# App Title
-# ===============================
-st.title("🏠 House Price Prediction App")
-st.write("This app predicts house prices using a Random Forest Regression model.")
+st.title("💼 Salary Prediction App")
+st.write("Decision Tree Regression based Salary Prediction")
 
 # ===============================
-# Load Dataset
+# Load dataset
 # ===============================
 @st.cache_data
 def load_data():
-    return pd.read_csv("house_prices_dataset.csv")
+    return pd.read_csv("Salary Data.csv")
 
 data = load_data()
 
@@ -33,10 +34,26 @@ st.subheader("📊 Dataset Preview")
 st.dataframe(data.head())
 
 # ===============================
+# Drop missing salary values
+# ===============================
+data = data.dropna(subset=['Salary'])
+
+# ===============================
+# Encode categorical columns
+# ===============================
+label_encoders = {}
+categorical_columns = ['Gender', 'Education Level', 'Job Title']
+
+for col in categorical_columns:
+    le = LabelEncoder()
+    data[col] = le.fit_transform(data[col])
+    label_encoders[col] = le
+
+# ===============================
 # Features & Target
 # ===============================
-X = data[['square_feet', 'num_rooms', 'age', 'distance_to_city(km)']]
-y = data['price']
+X = data[['Age', 'Gender', 'Education Level', 'Job Title', 'Years of Experience']]
+y = data['Salary']
 
 # ===============================
 # Train-Test Split
@@ -46,12 +63,13 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 # ===============================
-# Train Random Forest Model
+# Train Decision Tree Model
 # ===============================
 @st.cache_resource
 def train_model(X_train, y_train):
-    model = RandomForestRegressor(
-        n_estimators=100,
+    model = DecisionTreeRegressor(
+        criterion='squared_error',
+        max_depth=5,
         random_state=42
     )
     model.fit(X_train, y_train)
@@ -64,63 +82,72 @@ model = train_model(X_train, y_train)
 # ===============================
 y_pred = model.predict(X_test)
 
-mse = mean_squared_error(y_test, y_pred)
-r2 = r2_score(y_test, y_pred)
-
 st.subheader("📈 Model Performance")
-st.write(f"**Mean Squared Error (MSE):** {mse:,.2f}")
-st.write(f"**R² Score:** {r2:.4f}")
+st.write("MAE:", mean_absolute_error(y_test, y_pred))
+st.write("MSE:", mean_squared_error(y_test, y_pred))
+st.write("R² Score:", r2_score(y_test, y_pred))
 
 # ===============================
 # User Input Section
 # ===============================
-st.subheader("🔢 Enter House Details")
+st.subheader("🔢 Enter Employee Details")
 
-square_feet = st.number_input(
-    "Square Feet",
-    min_value=300,
-    max_value=10000,
-    value=1500
+age = st.number_input("Age", min_value=18, max_value=65, value=28)
+
+gender = st.selectbox(
+    "Gender",
+    label_encoders['Gender'].classes_
 )
 
-num_rooms = st.number_input(
-    "Number of Rooms",
-    min_value=1,
-    max_value=20,
-    value=3
+education = st.selectbox(
+    "Education Level",
+    label_encoders['Education Level'].classes_
 )
 
-age = st.number_input(
-    "House Age (years)",
+job_title = st.selectbox(
+    "Job Title",
+    label_encoders['Job Title'].classes_
+)
+
+experience = st.number_input(
+    "Years of Experience",
     min_value=0,
-    max_value=100,
-    value=10
-)
-
-distance = st.number_input(
-    "Distance to City (km)",
-    min_value=0.0,
-    max_value=100.0,
-    value=10.0
+    max_value=40,
+    value=5
 )
 
 # ===============================
 # Prediction
 # ===============================
-if st.button("💰 Predict House Price"):
+if st.button("💰 Predict Salary"):
     input_data = pd.DataFrame({
-        'square_feet': [square_feet],
-        'num_rooms': [num_rooms],
-        'age': [age],
-        'distance_to_city(km)': [distance]
+        'Age': [age],
+        'Gender': [label_encoders['Gender'].transform([gender])[0]],
+        'Education Level': [label_encoders['Education Level'].transform([education])[0]],
+        'Job Title': [label_encoders['Job Title'].transform([job_title])[0]],
+        'Years of Experience': [experience]
     })
 
     prediction = model.predict(input_data)
+    st.success(f"Predicted Salary: ₹ {prediction[0]:,.2f}")
 
-    st.success(f"🏷️ Predicted House Price: ₹ {prediction[0]:,.2f}")
+# ===============================
+# Decision Tree Visualization
+# ===============================
+st.subheader("🌳 Decision Tree Visualization")
+
+fig, ax = plt.subplots(figsize=(20, 10))
+plot_tree(
+    model,
+    feature_names=X.columns,
+    filled=True,
+    rounded=True,
+    ax=ax
+)
+st.pyplot(fig)
 
 # ===============================
 # Footer
 # ===============================
 st.markdown("---")
-st.caption("📌 Built using Streamlit & Random Forest Regression")
+st.caption("Built with Streamlit & Decision Tree Regression")
